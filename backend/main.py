@@ -8,11 +8,12 @@ from typing import List
 from schemas import (ComponentResponse, ComponentCreate, ComponentUpdate,
     ProductResponse, ProductCreate, ProductUpdate, ProductDetailResponse,
     ProductCapacityResponse,HealthResponse, BOMItemCreate,
-    OrderResponse, OrderCreate, OrderDetailResponse, OrderSummaryResponse,
+    OrderResponse, OrderCreate, OrderDetailResponse, OrderSummaryResponse,ProcurementResponse
 )
 import crud_components
 import crud_products
 import crud_orders
+import crud_procurement
 
 # Create FastAPI app
 app = FastAPI(
@@ -258,6 +259,28 @@ def complete_order(order_id: int, db: Session = Depends(get_db)):
         400: Order already completed
     """
     return crud_orders.complete_order(db, order_id)
+
+@app.post("/orders/{order_id}/allocate", response_model=OrderDetailResponse)
+def allocate_order(order_id: int, db: Session = Depends(get_db)):
+    """
+    Allocate inventory to a pending order (after components arrive).
+    
+    Checks if sufficient inventory now exists and allocates if so.
+    """
+    return crud_orders.allocate_pending_order(db, order_id)
+
+
+# ==== PROCUREMENT ENDPOINTS ====
+
+@app.get("/procurement/needs", response_model=ProcurementResponse)
+def get_procurement_needs(db: Session = Depends(get_db)):
+    """
+    Calculate what components need to be ordered to fulfill all in_progress orders.
+    
+    Returns list of components with shortages and how much to order.
+    """
+    return crud_procurement.calculate_procurement_needs(db)
+
 
 
 if __name__ == "__main__":

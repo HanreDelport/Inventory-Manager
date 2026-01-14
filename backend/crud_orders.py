@@ -44,7 +44,6 @@ def get_order_with_details(db: Session, order_id: int):
 
 
 def create_order(db: Session, order_data: OrderCreate):
-    # Validate product exists
     product = db.query(Product).filter(Product.id == order_data.product_id).first()
     
     if not product:
@@ -53,7 +52,6 @@ def create_order(db: Session, order_data: OrderCreate):
             detail=f"Product with id {order_data.product_id} not found"
         )
     
-    # Get product's BOM
     bom_entries = db.query(BillOfMaterials).filter(
         BillOfMaterials.product_id == order_data.product_id
     ).all()
@@ -64,20 +62,13 @@ def create_order(db: Session, order_data: OrderCreate):
             detail=f"Product '{product.name}' has no Bill of Materials defined"
         )
     
-    # Calculate required components with spillage
     component_requirements = []
     
     for bom in bom_entries:
         component = bom.component
-        
-        # Calculate exact quantity needed (per unit with spillage)
         spillage_multiplier = Decimal("1") + component.spillage_coefficient
         exact_per_unit = Decimal(str(bom.quantity_required)) * spillage_multiplier
-        
-        # Calculate total for order quantity
         exact_total = exact_per_unit * Decimal(str(order_data.quantity))
-        
-        # Round UP to whole units (can't allocate partial components)
         allocated_quantity = math.ceil(float(exact_total))
         
         component_requirements.append({
@@ -89,7 +80,7 @@ def create_order(db: Session, order_data: OrderCreate):
             "allocated_quantity": allocated_quantity
         })
     
-    # Validate sufficient inventory for ALL components
+    # Check if we have enough inventory
     insufficient_components = []
     
     for req in component_requirements:
@@ -105,56 +96,45 @@ def create_order(db: Session, order_data: OrderCreate):
                 "shortage": needed - available
             })
     
+    # Decide status based on inventory availability
     if insufficient_components:
-        # Build detailed error message
-        shortage_details = []
-        for item in insufficient_components:
-            shortage_details.append(
-                f"{item['component_name']}: need {item['needed']}, have {item['available']} (short {item['shortage']})"
-            )
-        
-        raise HTTPException(
-            status_code=400,
-            detail=f"Insufficient inventory for order. Shortages: {'; '.join(shortage_details)}"
-        )
+        order_status = 'pending'  # Not enough inventory - wait for procurement
+        allocate_inventory = False
+    else:
+        order_status = 'in_progress'  # Enough inventory - allocate immediately
+        allocate_inventory = True
     
-    # BEGIN TRANSACTION - Create order and allocate inventory
     try:
-        # Create order record
         new_order = Order(
             product_id=order_data.product_id,
             quantity=order_data.quantity,
-            status='in_progress'  # Directly to in_progress
+            status=order_status
         )
         
         db.add(new_order)
-        db.flush()  # Get order ID without committing
+        db.flush()
         
-        # Allocate each component
-        for req in component_requirements:
-            component = req["component"]
-            allocated_qty = req["allocated_quantity"]
+        # Only allocate if we have enough inventory
+        if allocate_inventory:
+            for req in component_requirements:
+                component = req["component"]
+                allocated_qty = req["allocated_quantity"]
+                
+                component.in_stock -= allocated_qty
+                component.in_progress += allocated_qty
+                
+                allocation = OrderAllocation(
+                    order_id=new_order.id,
+                    component_id=component.id,
+                    quantity_allocated=allocated_qty
+                )
+                db.add(allocation)
             
-            # Update component inventory
-            component.in_stock -= allocated_qty
-            component.in_progress += allocated_qty
-            
-            # Create allocation record
-            allocation = OrderAllocation(
-                order_id=new_order.id,
-                component_id=component.id,
-                quantity_allocated=allocated_qty
-            )
-            db.add(allocation)
+            product.in_progress += order_data.quantity
         
-        # Update product inventory
-        product.in_progress += order_data.quantity
-        
-        # Commit everything
         db.commit()
         db.refresh(new_order)
         
-        # Return detailed response
         return get_order_with_details(db, new_order.id)
     
     except Exception as e:
@@ -163,7 +143,6 @@ def create_order(db: Session, order_data: OrderCreate):
             status_code=500,
             detail=f"Failed to create order: {str(e)}"
         )
-
 
 def complete_order(db: Session, order_id: int):
     order = get_order_by_id(db, order_id)
@@ -256,3 +235,94 @@ def get_order_summary(db: Session):
         "completed": completed_count,
         "orders": order_list
     }
+
+
+def allocate_pending_order(db: Session, order_id: int):
+    order = get_order_by_id(db, order_id)
+    
+    if not order:
+        raise HTTPException(status_code=404, detail=f"Order with id {order_id} not found")
+    
+    if order.status != 'pending':
+        raise HTTPException(
+            status_code=400,
+            detail=f"Order {order_id} is not pending (current status: {order.status})"
+        )
+    
+    product = order.product
+    bom_entries = db.query(BillOfMaterials).filter(
+        BillOfMaterials.product_id == order.product_id
+    ).all()
+    
+    component_requirements = []
+    
+    for bom in bom_entries:
+        component = bom.component
+        spillage_multiplier = Decimal("1") + component.spillage_coefficient
+        exact_per_unit = Decimal(str(bom.quantity_required)) * spillage_multiplier
+        exact_total = exact_per_unit * Decimal(str(order.quantity))
+        allocated_quantity = math.ceil(float(exact_total))
+        
+        component_requirements.append({
+            "component": component,
+            "allocated_quantity": allocated_quantity
+        })
+    
+    # Check if we NOW have enough inventory
+    insufficient_components = []
+    
+    for req in component_requirements:
+        component = req["component"]
+        needed = req["allocated_quantity"]
+        available = component.in_stock
+        
+        if available < needed:
+            insufficient_components.append({
+                "component_name": component.name,
+                "needed": needed,
+                "available": available,
+                "shortage": needed - available
+            })
+    
+    if insufficient_components:
+        shortage_details = []
+        for item in insufficient_components:
+            shortage_details.append(
+                f"{item['component_name']}: need {item['needed']}, have {item['available']} (short {item['shortage']})"
+            )
+        
+        raise HTTPException(
+            status_code=400,
+            detail=f"Still insufficient inventory. Shortages: {'; '.join(shortage_details)}"
+        )
+    
+    try:
+        # Allocate components
+        for req in component_requirements:
+            component = req["component"]
+            allocated_qty = req["allocated_quantity"]
+            
+            component.in_stock -= allocated_qty
+            component.in_progress += allocated_qty
+            
+            allocation = OrderAllocation(
+                order_id=order.id,
+                component_id=component.id,
+                quantity_allocated=allocated_qty
+            )
+            db.add(allocation)
+        
+        # Update product
+        product.in_progress += order.quantity
+        
+        # Update order status
+        order.status = 'in_progress'
+        
+        db.commit()
+        db.refresh(order)
+        
+        return get_order_with_details(db, order_id)
+    
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to allocate order: {str(e)}")

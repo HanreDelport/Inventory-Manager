@@ -143,6 +143,18 @@ class OrderSummaryResponse(BaseModel):
     completed: int
     orders: List[OrderResponse]
 
+class ProcurementItemResponse(BaseModel):
+    component_id: int
+    component_name: str
+    in_stock: int
+    total_needed: int
+    shortage: int
+    orders_affected: int
+
+class ProcurementResponse(BaseModel):
+    components_to_order: List[ProcurementItemResponse]
+    total_items: int
+
 # Health Check Schema
 class HealthResponse(BaseModel):
     status: str
