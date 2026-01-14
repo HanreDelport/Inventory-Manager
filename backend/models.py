@@ -4,6 +4,7 @@ from sqlalchemy.sql import func
 from database import Base
 import enum
 
+
 # Enum for order status
 class OrderStatus(str, enum.Enum):
     PENDING = "pending"
@@ -78,7 +79,9 @@ class Order(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     product_id = Column(Integer, ForeignKey("products.id", ondelete="RESTRICT"), nullable=False)
     quantity = Column(Integer, nullable=False)
-    status = Column(Enum('pending', 'in_progress', 'completed', name='orderstatus'), default='in_progress')
+    status = Column(Enum(OrderStatus, name="orderstatus", values_callable=lambda e: [m.value for m in e]),nullable=False, 
+                    default=OrderStatus.in_progress )
+
     created_at = Column(TIMESTAMP, server_default=func.now())
     completed_at = Column(TIMESTAMP, nullable=True)
     
