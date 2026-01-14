@@ -36,7 +36,7 @@ def get_order_with_details(db: Session, order_id: int):
         product_id=order.product_id,
         product_name=order.product.name,
         quantity=order.quantity,
-        status=order.status,
+        status=order.status.value,
         created_at=order.created_at,
         completed_at=order.completed_at,
         allocations=allocations
@@ -98,10 +98,10 @@ def create_order(db: Session, order_data: OrderCreate):
     
     # Decide status based on inventory availability
     if insufficient_components:
-        order_status = 'pending'  # Not enough inventory - wait for procurement
+        order_status = OrderStatus.PENDING  # Not enough inventory - wait for procurement
         allocate_inventory = False
     else:
-        order_status = 'in_progress'  # Enough inventory - allocate immediately
+        order_status = OrderStatus.IN_PROGRESS  # Enough inventory - allocate immediately
         allocate_inventory = True
     
     try:
@@ -153,7 +153,7 @@ def complete_order(db: Session, order_id: int):
             detail=f"Order with id {order_id} not found"
         )
     
-    if order.status == 'completed':
+    if order.status == OrderStatus.COMPLETED:
         raise HTTPException(
             status_code=400,
             detail=f"Order {order_id} is already completed"
@@ -188,7 +188,7 @@ def complete_order(db: Session, order_id: int):
         product.shipped += order.quantity
         
         # Update order status
-        order.status = 'completed'
+        order.status = OrderStatus.COMPLETED
         order.completed_at = datetime.utcnow()
         
         db.commit()
@@ -211,9 +211,9 @@ def get_order_summary(db: Session):
     orders = get_all_orders(db)
     
     # Count by status
-    pending_count = sum(1 for o in orders if o.status == 'pending')
-    in_progress_count = sum(1 for o in orders if o.status == 'in_progress')
-    completed_count = sum(1 for o in orders if o.status == 'completed')
+    pending_count = sum(1 for o in orders if o.status == OrderStatus.PENDING)
+    in_progress_count = sum(1 for o in orders if o.status == OrderStatus.IN_PROGRESS)
+    completed_count = sum(1 for o in orders if o.status == OrderStatus.COMPLETED)
     
     # Build order list with product names
     order_list = []
@@ -223,7 +223,7 @@ def get_order_summary(db: Session):
             product_id=order.product_id,
             product_name=order.product.name,
             quantity=order.quantity,
-            status=order.status,
+            status=order.status.value,
             created_at=order.created_at,
             completed_at=order.completed_at
         ))
@@ -243,7 +243,7 @@ def allocate_pending_order(db: Session, order_id: int):
     if not order:
         raise HTTPException(status_code=404, detail=f"Order with id {order_id} not found")
     
-    if order.status != 'pending':
+    if order.status != OrderStatus.PENDING:
         raise HTTPException(
             status_code=400,
             detail=f"Order {order_id} is not pending (current status: {order.status})"
@@ -316,7 +316,7 @@ def allocate_pending_order(db: Session, order_id: int):
         product.in_progress += order.quantity
         
         # Update order status
-        order.status = 'in_progress'
+        order.status = OrderStatus.IN_PROGRESS
         
         db.commit()
         db.refresh(order)

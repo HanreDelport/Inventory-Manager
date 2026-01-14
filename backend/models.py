@@ -80,7 +80,7 @@ class Order(Base):
     product_id = Column(Integer, ForeignKey("products.id", ondelete="RESTRICT"), nullable=False)
     quantity = Column(Integer, nullable=False)
     status = Column(Enum(OrderStatus, name="orderstatus", values_callable=lambda e: [m.value for m in e]),nullable=False, 
-                    default=OrderStatus.in_progress )
+                    default=OrderStatus.IN_PROGRESS )
 
     created_at = Column(TIMESTAMP, server_default=func.now())
     completed_at = Column(TIMESTAMP, nullable=True)
