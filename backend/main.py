@@ -8,7 +8,7 @@ from typing import List
 from schemas import (ComponentResponse, ComponentCreate, ComponentUpdate,
     ProductResponse, ProductCreate, ProductUpdate, ProductDetailResponse,
     ProductCapacityResponse,HealthResponse, BOMItemCreate,
-    OrderResponse, OrderCreate, OrderDetailResponse, OrderSummaryResponse,ProcurementResponse
+    OrderResponse, OrderCreate, OrderDetailResponse, OrderSummaryResponse,ProcurementResponse, OrderRequirementsResponse
 )
 import crud_components
 import crud_products
@@ -271,6 +271,14 @@ def allocate_order(order_id: int, db: Session = Depends(get_db)):
     """
     return crud_orders.allocate_pending_order(db, order_id)
 
+@app.get("/orders/{order_id}/requirements", response_model=OrderRequirementsResponse)
+def get_order_requirements(order_id: int, db: Session = Depends(get_db)):
+    """
+    Get component requirements for an order (for allocation preview).
+    
+    Shows what's needed, available, and short for each component.
+    """
+    return crud_orders.get_order_requirements(db, order_id)
 
 # ==== PROCUREMENT ENDPOINTS ====
 

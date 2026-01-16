@@ -6,8 +6,10 @@ function OrdersPage() {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [successMessage, setSuccessMessage] = useState(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [viewingOrder, setViewingOrder] = useState(null);
+  const [allocatingOrder, setAllocatingOrder] = useState(null);
 
   useEffect(() => {
     loadOrders();
@@ -32,31 +34,37 @@ function OrdersPage() {
       const response = await getOrder(id);
       setViewingOrder(response.data);
     } catch (err) {
-      alert(err.response?.data?.detail || 'Failed to load order details');
+      setError(err.response?.data?.detail || 'Failed to load order details');
+      setTimeout(() => setError(null), 5000);
     }
   };
 
   const handleComplete = async (id) => {
     try {
       await completeOrder(id);
+      setSuccessMessage('Order completed successfully!');
+      setTimeout(() => setSuccessMessage(null), 5000);
       loadOrders();
-      alert('Order completed successfully!');
     } catch (err) {
-      alert(err.response?.data?.detail || 'Failed to complete order');
+      setError(err.response?.data?.detail || 'Failed to complete order');
+      setTimeout(() => setError(null), 5000);
     }
   };
 
-  const handleAllocate = async (id) => {
+  const handleAllocate = async () => {
     try {
-      await allocateOrder(id);
+      await allocateOrder(allocatingOrder.id);
+      setSuccessMessage('Order allocated successfully!');
+      setTimeout(() => setSuccessMessage(null), 5000);
+      setAllocatingOrder(null);
       loadOrders();
-      alert('Order allocated successfully!');
     } catch (err) {
-      alert(err.response?.data?.detail || 'Failed to allocate order');
+      setError(err.response?.data?.detail || 'Failed to allocate order');
+      setTimeout(() => setError(null), 5000);
     }
   };
 
-  const isFormOpen = showCreateForm || viewingOrder;
+  const isFormOpen = showCreateForm || viewingOrder || allocatingOrder;
 
   if (loading) return <div className="loading">Loading orders...</div>;
 
@@ -68,6 +76,7 @@ function OrdersPage() {
       </div>
 
       {error && <div className="error">{error}</div>}
+      {successMessage && <div className="success">{successMessage}</div>}
 
       {summary && !isFormOpen && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
@@ -103,9 +112,15 @@ function OrdersPage() {
         {showCreateForm && (
           <CreateOrderForm
             onClose={() => setShowCreateForm(false)}
-            onSave={() => {
+            onSave={(message) => {
               setShowCreateForm(false);
+              setSuccessMessage(message);
+              setTimeout(() => setSuccessMessage(null), 5000);
               loadOrders();
+            }}
+            onError={(message) => {
+              setError(message);
+              setTimeout(() => setError(null), 5000);
             }}
           />
         )}
@@ -114,6 +129,14 @@ function OrdersPage() {
           <OrderDetails
             order={viewingOrder}
             onClose={() => setViewingOrder(null)}
+          />
+        )}
+
+        {allocatingOrder && (
+          <AllocateOrderForm
+            order={allocatingOrder}
+            onConfirm={handleAllocate}
+            onCancel={() => setAllocatingOrder(null)}
           />
         )}
 
@@ -151,7 +174,7 @@ function OrdersPage() {
                       <button
                         className="button button-success"
                         style={{ marginRight: '0.5rem', padding: '0.5rem 1rem' }}
-                        onClick={() => handleAllocate(order.id)}
+                        onClick={() => handleViewDetails(order.id).then(() => setAllocatingOrder(orders.find(o => o.id === order.id)))}
                       >
                         Allocate
                       </button>
@@ -202,15 +225,13 @@ function StatusBadge({ status }) {
   );
 }
 
-function CreateOrderForm({ onClose, onSave }) {
+function CreateOrderForm({ onClose, onSave, onError }) {
   const [products, setProducts] = useState([]);
   const [formData, setFormData] = useState({
     product_id: '',
     quantity: 1,
   });
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
-  const [successMessage, setSuccessMessage] = useState(null);
 
   useEffect(() => {
     loadProducts();
@@ -221,30 +242,24 @@ function CreateOrderForm({ onClose, onSave }) {
       const response = await getProducts();
       setProducts(response.data);
     } catch (err) {
-      setError('Failed to load products');
+      onError('Failed to load products');
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
-    setError(null);
-    setSuccessMessage(null);
 
     try {
       const response = await createOrder(formData);
       
       if (response.data.status === 'pending') {
-        setSuccessMessage('Order created but is PENDING - insufficient inventory. Please procure components and allocate.');
+        onSave('Order created but is PENDING - insufficient inventory. Please procure components and allocate.');
       } else {
-        setSuccessMessage('Order created and allocated successfully!');
+        onSave('Order created and allocated successfully!');
       }
-      
-      setTimeout(() => {
-        onSave();
-      }, 2000);
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to create order');
+      onError(err.response?.data?.detail || 'Failed to create order');
     } finally {
       setSaving(false);
     }
@@ -253,8 +268,6 @@ function CreateOrderForm({ onClose, onSave }) {
   return (
     <div className="card" style={{ backgroundColor: '#f9f9f9', marginBottom: '1rem' }}>
       <h4>Create Order</h4>
-      {error && <div className="error">{error}</div>}
-      {successMessage && <div className="success">{successMessage}</div>}
 
       <form onSubmit={handleSubmit}>
         <div style={{ marginBottom: '1rem' }}>
@@ -299,6 +312,115 @@ function CreateOrderForm({ onClose, onSave }) {
           </button>
         </div>
       </form>
+    </div>
+  );
+}
+
+function AllocateOrderForm({ order, onConfirm, onCancel }) {
+  const [orderDetails, setOrderDetails] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadOrderDetails();
+  }, []);
+
+  const loadOrderDetails = async () => {
+    try {
+      const response = await getOrder(order.id);
+      setOrderDetails(response.data);
+    } catch (err) {
+      console.error('Failed to load order details');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="card" style={{ backgroundColor: '#fff9e6', marginBottom: '1rem', border: '2px solid #f39c12' }}>
+        <p>Loading allocation details...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="card" style={{ backgroundColor: '#fff9e6', marginBottom: '1rem', border: '2px solid #f39c12' }}>
+      <h4>⚠️ Allocate Order #{order.id}</h4>
+      <p style={{ marginBottom: '1rem' }}>
+        <strong>Product:</strong> {order.product_name} | <strong>Quantity:</strong> {order.quantity} units
+      </p>
+
+      <h5 style={{ marginBottom: '0.5rem' }}>Components Required:</h5>
+      <p style={{ fontSize: '0.9rem', color: '#666', marginBottom: '1rem' }}>
+        This order requires the following components to be allocated from stock:
+      </p>
+
+      <table style={{ marginBottom: '1rem' }}>
+        <thead>
+          <tr>
+            <th>Component</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {orderDetails && orderDetails.allocations.length > 0 ? (
+            orderDetails.allocations.map((allocation) => (
+              <tr key={allocation.id}>
+                <td><strong>{allocation.component_name}</strong></td>
+                <td>
+                  <span style={{
+                    padding: '0.25rem 0.5rem',
+                    backgroundColor: '#d4edda',
+                    color: '#155724',
+                    borderRadius: '4px',
+                    fontSize: '0.85rem'
+                  }}>
+                    ✓ Already Allocated ({allocation.quantity_allocated} units)
+                  </span>
+                </td>
+              </tr>
+            ))
+          ) : (
+            <tr>
+              <td colSpan="2" style={{ textAlign: 'center', color: '#999', fontStyle: 'italic' }}>
+                No components allocated yet - allocation will happen when you confirm
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+
+      <div style={{ 
+        padding: '1rem', 
+        backgroundColor: '#e6f7ff', 
+        borderRadius: '4px',
+        marginBottom: '1rem'
+      }}>
+        <p style={{ fontSize: '0.95rem', marginBottom: '0.5rem' }}>
+          <strong>What happens when you allocate:</strong>
+        </p>
+        <ul style={{ marginLeft: '1.5rem', fontSize: '0.9rem' }}>
+          <li>Required components will move from "In Stock" to "In Progress"</li>
+          <li>Product quantity will move to "In Progress"</li>
+          <li>Order status will change from PENDING to IN PROGRESS</li>
+        </ul>
+      </div>
+
+      <div style={{ display: 'flex', gap: '1rem' }}>
+        <button
+          className="button button-success"
+          onClick={onConfirm}
+        >
+          Confirm Allocation
+        </button>
+        <button
+          className="button"
+          onClick={onCancel}
+          style={{ backgroundColor: '#95a5a6', color: 'white' }}
+        >
+          Back
+        </button>
+      </div>
     </div>
   );
 }

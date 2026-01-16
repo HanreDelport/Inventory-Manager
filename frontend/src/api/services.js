@@ -23,6 +23,7 @@ export const getOrder = (id) => apiClient.get(`/orders/${id}`);
 export const createOrder = (data) => apiClient.post('/orders', data);
 export const completeOrder = (id) => apiClient.post(`/orders/${id}/complete`);
 export const allocateOrder = (id) => apiClient.post(`/orders/${id}/allocate`);
+export const getOrderRequirements = (id) => apiClient.get(`/orders/${id}/requirements`);
 
 // Procurement
 export const getProcurementNeeds = () => apiClient.get('/procurement/needs');

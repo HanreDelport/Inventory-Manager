@@ -326,3 +326,52 @@ def allocate_pending_order(db: Session, order_id: int):
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to allocate order: {str(e)}")
+ 
+    
+def get_order_requirements(db: Session, order_id: int):
+    """
+    Get component requirements for an order (for allocation preview).
+    
+    Shows what components are needed, available, and short.
+    """
+    order = get_order_by_id(db, order_id)
+    
+    if not order:
+        raise HTTPException(status_code=404, detail=f"Order with id {order_id} not found")
+    
+    product = order.product
+    bom_entries = db.query(BillOfMaterials).filter(
+        BillOfMaterials.product_id == order.product_id
+    ).all()
+    
+    requirements = []
+    
+    for bom in bom_entries:
+        component = bom.component
+        spillage_multiplier = Decimal("1") + component.spillage_coefficient
+        exact_per_unit = Decimal(str(bom.quantity_required)) * spillage_multiplier
+        exact_total = exact_per_unit * Decimal(str(order.quantity))
+        needed_qty = math.ceil(float(exact_total))
+        
+        available = component.in_stock
+        shortage = max(0, needed_qty - available)
+        
+        requirements.append({
+            "component_id": component.id,
+            "component_name": component.name,
+            "needed": needed_qty,
+            "available": available,
+            "shortage": shortage,
+            "has_enough": shortage == 0
+        })
+    
+    can_allocate = all(req["has_enough"] for req in requirements)
+    
+    return {
+        "order_id": order.id,
+        "product_name": product.name,
+        "quantity": order.quantity,
+        "status": order.status,
+        "requirements": requirements,
+        "can_allocate": can_allocate
+    }

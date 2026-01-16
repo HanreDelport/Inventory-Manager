@@ -95,6 +95,7 @@ class ProductCapacityResponse(BaseModel):
     max_producible: int  # Calculated based on component availability
     limiting_component: Optional[str]  # Which component limits production
 
+
 # ===== ORDER SCHEMAS =====
 
 class OrderCreate(BaseModel):
@@ -142,6 +143,25 @@ class OrderSummaryResponse(BaseModel):
     in_progress: int
     completed: int
     orders: List[OrderResponse]
+
+class ComponentRequirementResponse(BaseModel):
+    component_id: int
+    component_name: str
+    needed: int
+    available: int
+    shortage: int
+    has_enough: bool
+
+class OrderRequirementsResponse(BaseModel):
+    order_id: int
+    product_name: str
+    quantity: int
+    status: str
+    requirements: List[ComponentRequirementResponse]
+    can_allocate: bool
+
+
+# ===== ORDER SCHEMAS =====
 
 class ProcurementItemResponse(BaseModel):
     component_id: int
