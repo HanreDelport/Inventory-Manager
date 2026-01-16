@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getOrders, getOrder, createOrder, completeOrder, allocateOrder, getProducts } from '../api/services';
+import { getOrders, getOrder, createOrder, completeOrder, allocateOrder, getProducts, getOrderRequirements } from '../api/services';
 
 function OrdersPage() {
   const [orders, setOrders] = useState([]);
@@ -134,7 +134,7 @@ function OrdersPage() {
 
         {allocatingOrder && (
           <AllocateOrderForm
-            order={allocatingOrder}
+            orderId={allocatingOrder.id}
             onConfirm={handleAllocate}
             onCancel={() => setAllocatingOrder(null)}
           />
@@ -174,7 +174,7 @@ function OrdersPage() {
                       <button
                         className="button button-success"
                         style={{ marginRight: '0.5rem', padding: '0.5rem 1rem' }}
-                        onClick={() => handleViewDetails(order.id).then(() => setAllocatingOrder(orders.find(o => o.id === order.id)))}
+                        onClick={() => setAllocatingOrder(order)}
                       >
                         Allocate
                       </button>
@@ -316,20 +316,20 @@ function CreateOrderForm({ onClose, onSave, onError }) {
   );
 }
 
-function AllocateOrderForm({ order, onConfirm, onCancel }) {
-  const [orderDetails, setOrderDetails] = useState(null);
+function AllocateOrderForm({ orderId, onConfirm, onCancel }) {
+  const [requirements, setRequirements] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadOrderDetails();
+    loadRequirements();
   }, []);
 
-  const loadOrderDetails = async () => {
+  const loadRequirements = async () => {
     try {
-      const response = await getOrder(order.id);
-      setOrderDetails(response.data);
+      const response = await getOrderRequirements(orderId);
+      setRequirements(response.data);
     } catch (err) {
-      console.error('Failed to load order details');
+      console.error('Failed to load requirements');
     } finally {
       setLoading(false);
     }
@@ -343,31 +343,44 @@ function AllocateOrderForm({ order, onConfirm, onCancel }) {
     );
   }
 
+  const canAllocate = requirements?.can_allocate;
+
   return (
-    <div className="card" style={{ backgroundColor: '#fff9e6', marginBottom: '1rem', border: '2px solid #f39c12' }}>
-      <h4>⚠️ Allocate Order #{order.id}</h4>
+    <div className="card" style={{ 
+      backgroundColor: canAllocate ? '#e6f7ff' : '#ffe6e6', 
+      marginBottom: '1rem', 
+      border: `2px solid ${canAllocate ? '#3498db' : '#e74c3c'}`
+    }}>
+      <h4>{canAllocate ? '✓' : '⚠️'} Allocate Order #{orderId}</h4>
       <p style={{ marginBottom: '1rem' }}>
-        <strong>Product:</strong> {order.product_name} | <strong>Quantity:</strong> {order.quantity} units
+        <strong>Product:</strong> {requirements?.product_name} | <strong>Quantity:</strong> {requirements?.quantity} units
       </p>
 
-      <h5 style={{ marginBottom: '0.5rem' }}>Components Required:</h5>
-      <p style={{ fontSize: '0.9rem', color: '#666', marginBottom: '1rem' }}>
-        This order requires the following components to be allocated from stock:
-      </p>
+      <h5 style={{ marginBottom: '0.5rem' }}>Component Requirements:</h5>
 
       <table style={{ marginBottom: '1rem' }}>
         <thead>
           <tr>
             <th>Component</th>
+            <th>Needed</th>
+            <th>Available</th>
+            <th>Shortage</th>
             <th>Status</th>
           </tr>
         </thead>
         <tbody>
-          {orderDetails && orderDetails.allocations.length > 0 ? (
-            orderDetails.allocations.map((allocation) => (
-              <tr key={allocation.id}>
-                <td><strong>{allocation.component_name}</strong></td>
-                <td>
+          {requirements?.requirements.map((req) => (
+            <tr key={req.component_id}>
+              <td><strong>{req.component_name}</strong></td>
+              <td>{req.needed}</td>
+              <td style={{ color: req.has_enough ? '#27ae60' : '#e74c3c', fontWeight: '600' }}>
+                {req.available}
+              </td>
+              <td style={{ color: req.shortage > 0 ? '#e74c3c' : '#27ae60', fontWeight: '600' }}>
+                {req.shortage > 0 ? req.shortage : '—'}
+              </td>
+              <td>
+                {req.has_enough ? (
                   <span style={{
                     padding: '0.25rem 0.5rem',
                     backgroundColor: '#d4edda',
@@ -375,41 +388,62 @@ function AllocateOrderForm({ order, onConfirm, onCancel }) {
                     borderRadius: '4px',
                     fontSize: '0.85rem'
                   }}>
-                    ✓ Already Allocated ({allocation.quantity_allocated} units)
+                    ✓ Sufficient
                   </span>
-                </td>
-              </tr>
-            ))
-          ) : (
-            <tr>
-              <td colSpan="2" style={{ textAlign: 'center', color: '#999', fontStyle: 'italic' }}>
-                No components allocated yet - allocation will happen when you confirm
+                ) : (
+                  <span style={{
+                    padding: '0.25rem 0.5rem',
+                    backgroundColor: '#f8d7da',
+                    color: '#721c24',
+                    borderRadius: '4px',
+                    fontSize: '0.85rem'
+                  }}>
+                    ✗ Insufficient
+                  </span>
+                )}
               </td>
             </tr>
-          )}
+          ))}
         </tbody>
       </table>
 
-      <div style={{ 
-        padding: '1rem', 
-        backgroundColor: '#e6f7ff', 
-        borderRadius: '4px',
-        marginBottom: '1rem'
-      }}>
-        <p style={{ fontSize: '0.95rem', marginBottom: '0.5rem' }}>
-          <strong>What happens when you allocate:</strong>
-        </p>
-        <ul style={{ marginLeft: '1.5rem', fontSize: '0.9rem' }}>
-          <li>Required components will move from "In Stock" to "In Progress"</li>
-          <li>Product quantity will move to "In Progress"</li>
-          <li>Order status will change from PENDING to IN PROGRESS</li>
-        </ul>
-      </div>
+      {canAllocate ? (
+        <div style={{ 
+          padding: '1rem', 
+          backgroundColor: '#d4edda', 
+          borderRadius: '4px',
+          marginBottom: '1rem'
+        }}>
+          <p style={{ fontSize: '0.95rem', marginBottom: '0.5rem', color: '#155724' }}>
+            <strong>✓ All components available - Ready to allocate</strong>
+          </p>
+          <ul style={{ marginLeft: '1.5rem', fontSize: '0.9rem', color: '#155724' }}>
+            <li>Components will move from "In Stock" to "In Progress"</li>
+            <li>Product quantity will move to "In Progress"</li>
+            <li>Order status will change to IN PROGRESS</li>
+          </ul>
+        </div>
+      ) : (
+        <div style={{ 
+          padding: '1rem', 
+          backgroundColor: '#f8d7da', 
+          borderRadius: '4px',
+          marginBottom: '1rem'
+        }}>
+          <p style={{ fontSize: '0.95rem', color: '#721c24' }}>
+            <strong>✗ Cannot allocate - Insufficient inventory</strong>
+          </p>
+          <p style={{ fontSize: '0.9rem', color: '#721c24', marginTop: '0.5rem' }}>
+            Please adjust component stock or procure the missing components before allocating.
+          </p>
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: '1rem' }}>
         <button
           className="button button-success"
           onClick={onConfirm}
+          disabled={!canAllocate}
         >
           Confirm Allocation
         </button>
