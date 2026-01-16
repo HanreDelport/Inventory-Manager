@@ -301,21 +301,25 @@ function DeleteConfirmation({ item, itemType, onConfirm, onCancel }) {
 }
 
 function StockAdjustmentForm({ component, onConfirm, onCancel }) {
-  const [adjustment, setAdjustment] = useState(0);
+  const [adjustment, setAdjustment] = useState('');
   const [saving, setSaving] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (adjustment === 0) {
-      alert('Adjustment cannot be zero');
+    const adjustmentValue = parseInt(adjustment);
+    
+    if (isNaN(adjustmentValue) || adjustmentValue === 0) {
+      alert('Adjustment cannot be zero or invalid');
       return;
     }
+    
     setSaving(true);
-    await onConfirm(adjustment);
+    await onConfirm(adjustmentValue);
     setSaving(false);
   };
 
-  const newStock = component.in_stock + adjustment;
+  const adjustmentValue = adjustment === '' ? 0 : parseInt(adjustment) || 0;
+  const newStock = component.in_stock + adjustmentValue;
 
   return (
     <div className="card" style={{ backgroundColor: '#e6f7ff', marginBottom: '1rem', border: '2px solid #3498db' }}>
@@ -332,7 +336,8 @@ function StockAdjustmentForm({ component, onConfirm, onCancel }) {
           <input
             type="number"
             value={adjustment}
-            onChange={(e) => setAdjustment(parseInt(e.target.value) || 0)}
+            onChange={(e) => setAdjustment(e.target.value)}
+            placeholder="Enter adjustment amount"
             style={{ width: '100%', padding: '0.5rem', fontSize: '1rem', border: '1px solid #ddd', borderRadius: '4px' }}
             autoFocus
           />
@@ -351,7 +356,7 @@ function StockAdjustmentForm({ component, onConfirm, onCancel }) {
           </p>
           {newStock < 0 && (
             <p style={{ color: '#e74c3c', marginTop: '0.5rem' }}>
-              ⚠️ Warning: Stock cannot be negative
+               Warning: Stock cannot be negative
             </p>
           )}
         </div>
@@ -360,7 +365,7 @@ function StockAdjustmentForm({ component, onConfirm, onCancel }) {
           <button
             type="submit"
             className="button button-success"
-            disabled={saving || newStock < 0}
+            disabled={saving || newStock < 0 || adjustment === '' || adjustmentValue === 0}
           >
             {saving ? 'Saving...' : 'Confirm Adjustment'}
           </button>
