@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getProducts, getProduct, createProduct, updateProduct, deleteProduct, getComponents } from '../api/services';
+import { getProducts, getProduct, createProduct, deleteProduct, getComponents } from '../api/services';
 
 function ProductsPage() {
   const [products, setProducts] = useState([]);
@@ -7,6 +7,7 @@ function ProductsPage() {
   const [error, setError] = useState(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [viewingProduct, setViewingProduct] = useState(null);
+  const [deletingProduct, setDeletingProduct] = useState(null);
 
   useEffect(() => {
     loadProducts();
@@ -34,16 +35,17 @@ function ProductsPage() {
     }
   };
 
-  const handleDelete = async (id, name) => {
-    if (!window.confirm(`Delete product "${name}"?`)) return;
-
+  const confirmDelete = async () => {
     try {
-      await deleteProduct(id);
+      await deleteProduct(deletingProduct.id);
+      setDeletingProduct(null);
       loadProducts();
     } catch (err) {
       alert(err.response?.data?.detail || 'Failed to delete product');
     }
   };
+
+  const isFormOpen = showCreateForm || viewingProduct || deletingProduct;
 
   if (loading) return <div className="loading">Loading products...</div>;
 
@@ -59,9 +61,11 @@ function ProductsPage() {
       <div className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
           <h3>All Products</h3>
-          <button className="button button-primary" onClick={() => setShowCreateForm(true)}>
-            + Add Product
-          </button>
+          {!isFormOpen && (
+            <button className="button button-primary" onClick={() => setShowCreateForm(true)}>
+              + Add Product
+            </button>
+          )}
         </div>
 
         {showCreateForm && (
@@ -81,43 +85,54 @@ function ProductsPage() {
           />
         )}
 
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>In Progress</th>
-              <th>Shipped</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {products.map((product) => (
-              <tr key={product.id}>
-                <td><strong>{product.name}</strong></td>
-                <td>{product.in_progress}</td>
-                <td>{product.shipped}</td>
-                <td>
-                  <button
-                    className="button button-primary"
-                    style={{ marginRight: '0.5rem', padding: '0.5rem 1rem' }}
-                    onClick={() => handleView(product.id)}
-                  >
-                    View BOM
-                  </button>
-                  <button
-                    className="button button-danger"
-                    style={{ padding: '0.5rem 1rem' }}
-                    onClick={() => handleDelete(product.id, product.name)}
-                  >
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        {deletingProduct && (
+          <DeleteConfirmation
+            item={deletingProduct}
+            itemType="product"
+            onConfirm={confirmDelete}
+            onCancel={() => setDeletingProduct(null)}
+          />
+        )}
 
-        {products.length === 0 && (
+        {!isFormOpen && (
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>In Progress</th>
+                <th>Shipped</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {products.map((product) => (
+                <tr key={product.id}>
+                  <td><strong>{product.name}</strong></td>
+                  <td>{product.in_progress}</td>
+                  <td>{product.shipped}</td>
+                  <td>
+                    <button
+                      className="button button-primary"
+                      style={{ marginRight: '0.5rem', padding: '0.5rem 1rem' }}
+                      onClick={() => handleView(product.id)}
+                    >
+                      View BOM
+                    </button>
+                    <button
+                      className="button button-danger"
+                      style={{ padding: '0.5rem 1rem' }}
+                      onClick={() => setDeletingProduct(product)}
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        {!isFormOpen && products.length === 0 && (
           <p style={{ textAlign: 'center', padding: '2rem', color: '#999' }}>
             No products yet. Click "Add Product" to create one.
           </p>
@@ -169,6 +184,14 @@ function ProductForm({ onClose, onSave }) {
     setFormData({ ...formData, bom: newBom });
   };
 
+  const getAvailableComponents = (currentIndex) => {
+    const selectedIds = formData.bom
+      .map((item, idx) => idx !== currentIndex ? item.component_id : null)
+      .filter(id => id !== null && id !== '');
+    
+    return components.filter(comp => !selectedIds.includes(comp.id));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -217,40 +240,49 @@ function ProductForm({ onClose, onSave }) {
             </button>
           </div>
 
-          {formData.bom.map((item, index) => (
-            <div key={index} style={{ display: 'flex', gap: '1rem', marginBottom: '0.5rem', alignItems: 'center' }}>
-              <select
-                value={item.component_id}
-                onChange={(e) => updateBOMItem(index, 'component_id', e.target.value)}
-                required
-                style={{ flex: 2, padding: '0.5rem', fontSize: '1rem', border: '1px solid #ddd', borderRadius: '4px' }}
-              >
-                <option value="">Select Component</option>
-                {components.map((comp) => (
-                  <option key={comp.id} value={comp.id}>
-                    {comp.name}
-                  </option>
-                ))}
-              </select>
-              <input
-                type="number"
-                min="1"
-                value={item.quantity_required}
-                onChange={(e) => updateBOMItem(index, 'quantity_required', e.target.value)}
-                placeholder="Quantity"
-                required
-                style={{ flex: 1, padding: '0.5rem', fontSize: '1rem', border: '1px solid #ddd', borderRadius: '4px' }}
-              />
-              <button
-                type="button"
-                className="button button-danger"
-                onClick={() => removeBOMItem(index)}
-                style={{ padding: '0.5rem 1rem' }}
-              >
-                Remove
-              </button>
-            </div>
-          ))}
+          {formData.bom.map((item, index) => {
+            const availableComponents = getAvailableComponents(index);
+            
+            return (
+              <div key={index} style={{ display: 'flex', gap: '1rem', marginBottom: '0.5rem', alignItems: 'center' }}>
+                <select
+                  value={item.component_id}
+                  onChange={(e) => updateBOMItem(index, 'component_id', e.target.value)}
+                  required
+                  style={{ flex: 2, padding: '0.5rem', fontSize: '1rem', border: '1px solid #ddd', borderRadius: '4px' }}
+                >
+                  <option value="">Select Component</option>
+                  {item.component_id && !availableComponents.find(c => c.id === item.component_id) && (
+                    <option value={item.component_id}>
+                      {components.find(c => c.id === item.component_id)?.name}
+                    </option>
+                  )}
+                  {availableComponents.map((comp) => (
+                    <option key={comp.id} value={comp.id}>
+                      {comp.name}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  min="1"
+                  value={item.quantity_required}
+                  onChange={(e) => updateBOMItem(index, 'quantity_required', e.target.value)}
+                  placeholder="Quantity"
+                  required
+                  style={{ flex: 1, padding: '0.5rem', fontSize: '1rem', border: '1px solid #ddd', borderRadius: '4px' }}
+                />
+                <button
+                  type="button"
+                  className="button button-danger"
+                  onClick={() => removeBOMItem(index)}
+                  style={{ padding: '0.5rem 1rem' }}
+                >
+                  Remove
+                </button>
+              </div>
+            );
+          })}
 
           {formData.bom.length === 0 && (
             <p style={{ color: '#999', fontStyle: 'italic' }}>No components added yet</p>
@@ -262,7 +294,7 @@ function ProductForm({ onClose, onSave }) {
             {saving ? 'Creating...' : 'Create Product'}
           </button>
           <button type="button" className="button" onClick={onClose} style={{ backgroundColor: '#95a5a6', color: 'white' }}>
-            Cancel
+            Back
           </button>
         </div>
       </form>
@@ -301,8 +333,46 @@ function ProductDetails({ product, onClose }) {
         onClick={onClose}
         style={{ marginTop: '1rem', backgroundColor: '#95a5a6', color: 'white' }}
       >
-        Close
+        Back
       </button>
+    </div>
+  );
+}
+
+function DeleteConfirmation({ item, itemType, onConfirm, onCancel }) {
+  const [confirming, setConfirming] = useState(false);
+
+  const handleConfirm = async () => {
+    setConfirming(true);
+    await onConfirm();
+    setConfirming(false);
+  };
+
+  return (
+    <div className="card" style={{ backgroundColor: '#ffe6e6', marginBottom: '1rem', border: '2px solid #e74c3c' }}>
+      <h4>⚠️ Confirm Deletion</h4>
+      <p style={{ marginBottom: '1rem', fontSize: '1.1rem' }}>
+        Are you sure you want to delete <strong>{itemType} "{item.name}"</strong>?
+      </p>
+      <p style={{ marginBottom: '1rem', color: '#666' }}>
+        This action cannot be undone.
+      </p>
+      <div style={{ display: 'flex', gap: '1rem' }}>
+        <button
+          className="button button-danger"
+          onClick={handleConfirm}
+          disabled={confirming}
+        >
+          {confirming ? 'Deleting...' : 'Yes, Delete'}
+        </button>
+        <button
+          className="button"
+          onClick={onCancel}
+          style={{ backgroundColor: '#95a5a6', color: 'white' }}
+        >
+          Back
+        </button>
+      </div>
     </div>
   );
 }
