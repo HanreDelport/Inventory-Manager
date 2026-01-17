@@ -11,6 +11,8 @@ body {
 
 .app {
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 .navbar {
@@ -21,6 +23,7 @@ body {
   justify-content: space-between;
   align-items: center;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  width: 100%;
 }
 
 .nav-brand h1 {
@@ -48,8 +51,8 @@ body {
 
 .main-content {
   padding: 2rem;
-  max-width: 1400px;
-  margin: 0 auto;
+  width: 100%;
+  flex: 1;
 }
 
 .page-header {
@@ -72,6 +75,7 @@ body {
   padding: 1.5rem;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
   margin-bottom: 1.5rem;
+  width: 100%;
 }
 
 .button {
@@ -142,6 +146,7 @@ th {
   padding: 1rem;
   border-radius: 4px;
   margin-bottom: 1rem;
+  width: 100%;
 }
 
 .success {
@@ -150,4 +155,5 @@ th {
   padding: 1rem;
   border-radius: 4px;
   margin-bottom: 1rem;
+  width: 100%;
 }
