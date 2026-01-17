@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getProducts, getProduct, createProduct, deleteProduct, getComponents } from '../api/services';
+import { getProducts, getProduct, createProduct, updateProduct, updateProductBOM, deleteProduct, getComponents } from '../api/services';
 
 function ProductsPage() {
   const [products, setProducts] = useState([]);
@@ -8,6 +8,7 @@ function ProductsPage() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [viewingProduct, setViewingProduct] = useState(null);
   const [deletingProduct, setDeletingProduct] = useState(null);
+  const [editingProduct, setEditingProduct] = useState(null);
 
   useEffect(() => {
     loadProducts();
@@ -35,17 +36,27 @@ function ProductsPage() {
     }
   };
 
+  const handleEdit = async (id) => {
+    try {
+      const response = await getProduct(id);
+      setEditingProduct(response.data);
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Failed to load product details');
+    }
+  };
+
   const confirmDelete = async () => {
     try {
       await deleteProduct(deletingProduct.id);
       setDeletingProduct(null);
       loadProducts();
     } catch (err) {
-      alert(err.response?.data?.detail || 'Failed to delete product');
+      setError(err.response?.data?.detail || 'Failed to delete product');
+      setTimeout(() => setError(null), 5000);
     }
   };
 
-  const isFormOpen = showCreateForm || viewingProduct || deletingProduct;
+  const isFormOpen = showCreateForm || viewingProduct || deletingProduct ||editingProduct;
 
   if (loading) return <div className="loading">Loading products...</div>;
 
@@ -73,6 +84,17 @@ function ProductsPage() {
             onClose={() => setShowCreateForm(false)}
             onSave={() => {
               setShowCreateForm(false);
+              loadProducts();
+            }}
+          />
+        )}
+
+        {editingProduct && (
+          <ProductForm
+            product={editingProduct}
+            onClose={() => setEditingProduct(null)}
+            onSave={() => {
+              setEditingProduct(null);
               loadProducts();
             }}
           />
@@ -119,6 +141,13 @@ function ProductsPage() {
                       View BOM
                     </button>
                     <button
+                      className="button button-primary"
+                      style={{ marginRight: '0.5rem', padding: '0.5rem 1rem', backgroundColor: '#f39c12' }}
+                      onClick={() => handleEdit(product.id)}
+                    >
+                      Edit
+                    </button>
+                    <button
                       className="button button-danger"
                       style={{ padding: '0.5rem 1rem' }}
                       onClick={() => setDeletingProduct(product)}
@@ -142,11 +171,14 @@ function ProductsPage() {
   );
 }
 
-function ProductForm({ onClose, onSave }) {
+function ProductForm({ product, onClose, onSave }) {
   const [components, setComponents] = useState([]);
   const [formData, setFormData] = useState({
-    name: '',
-    bom: [],
+    name: product?.name || '',
+    bom: product?.bom.map(item => ({
+      component_id: item.component_id,
+      quantity_required: item.quantity_required
+    })) || [],
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -204,10 +236,15 @@ function ProductForm({ onClose, onSave }) {
     setError(null);
 
     try {
-      await createProduct(formData);
+      if (product) {
+        await updateProduct(product.id, { name: formData.name });
+        await updateProductBOM(product.id, formData.bom);
+      } else {
+        await createProduct(formData);
+      }
       onSave();
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to create product');
+      setError(err.response?.data?.detail || `Failed to ${product ? 'update' : 'create'} product`);
     } finally {
       setSaving(false);
     }
@@ -215,7 +252,7 @@ function ProductForm({ onClose, onSave }) {
 
   return (
     <div className="card" style={{ backgroundColor: '#f9f9f9', marginBottom: '1rem' }}>
-      <h4>Create Product</h4>
+      <h4>{product ? 'Edit Product' : 'Create Product'}</h4>
       {error && <div className="error">{error}</div>}
 
       <form onSubmit={handleSubmit}>
