@@ -1,5 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import './App.css';
+import logo from './assets/logo.png';
+
 
 // Page components (we'll create these next)
 import Dashboard from './pages/Dashboard';
@@ -14,9 +16,14 @@ function App() {
     <Router>
       <div className="app">
         <nav className="navbar">
-          <div className="nav-brand">
-            <h1>Stock Management System</h1>
-          </div>
+         <div className="nav-brand">
+           <img
+             src={logo}
+             alt="Stock Management Logo"
+             className="nav-logo"
+           />
+           <h1>Inventory Management System</h1>
+         </div>
           <ul className="nav-links">
             <li><Link to="/">Dashboard</Link></li>
             <li><Link to="/components">Components</Link></li>
