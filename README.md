@@ -1,143 +1,133 @@
-📦 Stock Management System
+# 📦 Stock Management System
 
-A full-stack Stock Management System built with:
+A full-stack **Stock Management System** built with:
 
-Backend: FastAPI + SQLAlchemy + MySQL
+- **Backend:** FastAPI + SQLAlchemy  
+- **Frontend:** React (Vite)  
+- **Database:** MySQL  
 
-Frontend: React (Vite)
+This guide explains how to **run the application locally** from scratch.
 
-Database: MySQL
+---
 
-This README explains how to run the application locally.
+## 🧱 Project Structure
 
-🧱 Project Structure
 Inventory Manager/
 │
 ├── backend/
-│   ├── main.py
-│   ├── models.py
-│   ├── crud/
-│   ├── schemas/
-│   ├── database.py
-│   ├── requirements.txt
-│   ├── .env.example
-│   └── venv/
+│ ├── main.py
+│ ├── database.py
+│ ├── requirements.txt
+│ ├── .env.example
+│ └── venv/
 │
 ├── frontend/
-│   ├── src/
-│   ├── package.json
-│   └── vite.config.js
+│ ├── src/
+│ ├── package.json
+│ └── vite.config.js
 │
 └── schema.sql
 
-✅ Prerequisites
+yaml
+Copy code
+
+---
+
+## ✅ Prerequisites
 
 Make sure you have the following installed:
 
-Python 3.10+
+- **Python 3.10+**
+- **Node.js 18+**
+- **MySQL Server**
+- **Git**
 
-Node.js 18+
+---
 
-MySQL Server
+## 1️⃣ Clone the Repository
 
-Git
-
-1️⃣ Clone the Repository
+```bash
 git clone https://github.com/your-username/your-repo-name.git
 cd Inventory\ Manager
-
-2️⃣ Create the MySQL Database
-
+2️⃣ Create and Load the MySQL Database
 Open MySQL Workbench or MySQL CLI
 
-Create a database:
+Create the database:
 
+sql
+Copy code
 CREATE DATABASE stock_management;
+Select the database and load the schema:
 
-
-Import the schema:
-
-mysql -u your_user -p stock_management < schema.sql
-
-
-This will create all required tables.
+sql
+Copy code
+USE stock_management;
+SOURCE path-to-the-.sql-file;
+✅ This will create all required tables.
 
 3️⃣ Backend Setup (FastAPI)
 📁 Navigate to backend folder
+bash
+Copy code
 cd backend
-
-🐍 Create & activate virtual environment
-
-Windows (PowerShell):
-
-python -m venv venv
-./venv/Scripts/activate
-
-
-macOS / Linux:
-
-python3 -m venv venv
-source venv/bin/activate
+🐍 Activate the virtual environment
+bash
+Copy code
+./backend/venv/Scripts/activate
+⚠️ The virtual environment is already included in the project.
 
 📦 Install Python dependencies
+bash
+Copy code
 pip install -r requirements.txt
-
 🔐 Configure environment variables
-
-Rename .env.example → .env
+Rename .env.example to .env
 
 Open .env and fill in your MySQL credentials:
 
+env
+Copy code
 DB_HOST=localhost
 DB_PORT=3306
 DB_USER=your_mysql_user
 DB_PASSWORD=your_mysql_password
 DB_NAME=stock_management
-
 ▶️ Run the backend server
+bash
+Copy code
 python main.py
-
-
 Backend will run at:
 
+arduino
+Copy code
 http://localhost:8000
-
-
 API documentation (Swagger UI):
 
+bash
+Copy code
 http://localhost:8000/docs
-
-
-✅ If you see the Swagger UI, the backend is running correctly.
+✅ If Swagger loads, the backend is working correctly.
 
 4️⃣ Frontend Setup (React + Vite)
 📁 Navigate to frontend folder
+bash
+Copy code
 cd ../frontend
-
 📦 Install dependencies
+bash
+Copy code
 npm install
-
-▶️ Run the frontend dev server
+▶️ Run the frontend development server
+bash
+Copy code
 npm run dev
-
-
 Frontend will run at:
 
+arduino
+Copy code
 http://localhost:5173
-
-5️⃣ Connect Frontend to Backend
-
-Ensure the API base URL is correct:
-
-📄 frontend/src/api/client.js
-
-const API_BASE_URL = 'http://localhost:8000';
-
-🎉 You're Done!
-
+5️⃣ Verify the App
 Frontend: http://localhost:5173
-Backend API: http://localhost:8000
-API Docs: http://localhost:8000/docs
 
 Backend API: http://localhost:8000
 
