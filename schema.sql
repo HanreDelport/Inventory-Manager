@@ -30,6 +30,19 @@ CREATE TABLE products (
     CHECK (in_progress >= 0 AND shipped >= 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Product_bom table for nested products
+CREATE TABLE product_bom (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    parent_product_id INT NOT NULL,
+    child_product_id INT NOT NULL,
+    quantity_required INT NOT NULL,
+    UNIQUE KEY unique_parent_child (parent_product_id, child_product_id),
+    FOREIGN KEY (parent_product_id) REFERENCES products(id) ON DELETE CASCADE,
+    FOREIGN KEY (child_product_id) REFERENCES products(id) ON DELETE RESTRICT,
+    CHECK (quantity_required > 0),
+    CHECK (parent_product_id != child_product_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- Bill of Materials Table
 CREATE TABLE bill_of_materials (
     id INT AUTO_INCREMENT PRIMARY KEY,

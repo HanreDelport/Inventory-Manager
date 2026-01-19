@@ -48,6 +48,7 @@ class Product(Base):
     # Relationships
     bom_entries = relationship("BillOfMaterials", back_populates="product", cascade="all, delete-orphan")
     orders = relationship("Order", back_populates="product")
+    product_bom_entries = relationship("ProductBOM", foreign_keys="ProductBOM.parent_product_id", back_populates="parent_product", cascade="all, delete-orphan")
     
     # Constraints
     __table_args__ = (
@@ -70,6 +71,22 @@ class BillOfMaterials(Base):
     # Constraints
     __table_args__ = (
         CheckConstraint('quantity_required > 0', name='check_quantity_positive'),
+    )
+
+class ProductBOM(Base):
+    __tablename__ = "product_bom"
+    
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    parent_product_id = Column(Integer, ForeignKey("products.id", ondelete="CASCADE"), nullable=False)
+    child_product_id = Column(Integer, ForeignKey("products.id", ondelete="RESTRICT"), nullable=False)
+    quantity_required = Column(Integer, nullable=False)
+    
+    parent_product = relationship("Product", foreign_keys=[parent_product_id], back_populates="product_bom_entries")
+    child_product = relationship("Product", foreign_keys=[child_product_id])
+    
+    __table_args__ = (
+        CheckConstraint('quantity_required > 0', name='check_product_quantity_positive'),
+        CheckConstraint('parent_product_id != child_product_id', name='check_no_self_reference'),
     )
 
 

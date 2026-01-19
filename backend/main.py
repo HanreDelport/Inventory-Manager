@@ -7,8 +7,9 @@ import models
 from typing import List
 from schemas import (ComponentResponse, ComponentCreate, ComponentUpdate,
     ProductResponse, ProductCreate, ProductUpdate, ProductDetailResponse,
-    ProductCapacityResponse,HealthResponse, BOMItemCreate,
-    OrderResponse, OrderCreate, OrderDetailResponse, OrderSummaryResponse,ProcurementResponse, OrderRequirementsResponse
+    ProductCapacityResponse,HealthResponse, BOMItemCreate, OrderResponse, OrderCreate, 
+    OrderDetailResponse, OrderSummaryResponse,ProcurementResponse, OrderRequirementsResponse,
+    ProductBOMItemCreate  
 )
 import crud_components
 import crud_products
@@ -170,20 +171,18 @@ def delete_product(product_id: int, db: Session = Depends(get_db)):
 
 
 @app.put("/products/{product_id}/bom", response_model=ProductDetailResponse)
-def update_product_bom(product_id: int, bom: List[BOMItemCreate], db: Session = Depends(get_db)):
+def update_product_full_bom(
+    product_id: int,
+    component_bom: List[BOMItemCreate],
+    product_bom: List[ProductBOMItemCreate],
+    db: Session = Depends(get_db)
+):
     """
-    Replace a product's BOM completely.
+    Replace a product's complete BOM (both components and nested products).
     
     This deletes all existing BOM entries and creates new ones.
-    Use this when you need to change the components or quantities in a product.
-    
-    Example:
-    [
-      {"component_id": 1, "quantity_required": 6},
-      {"component_id": 3, "quantity_required": 3}
-    ]
     """
-    return crud_products.update_product_bom(db, product_id, bom)
+    return crud_products.update_product_full_bom(db, product_id, component_bom, product_bom)
 
 
 @app.get("/products/capacity/calculate", response_model=List[ProductCapacityResponse])

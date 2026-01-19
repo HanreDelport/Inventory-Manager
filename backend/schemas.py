@@ -52,22 +52,38 @@ class BOMItemDetailResponse(BaseModel):
     spillage_coefficient: Decimal
     quantity_with_spillage: Decimal 
 
+# Product BOM Schemas
+class ProductBOMItemCreate(BaseModel):
+    child_product_id: int = Field(..., gt=0)
+    quantity_required: int = Field(..., gt=0)
+
+class ProductBOMItemResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    child_product_id: int
+    child_product_name: str
+    quantity_required: int
+
 # Product Schemas
 
 class ProductBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
 
 class ProductCreate(ProductBase):
-    bom: List[BOMItemCreate] = Field(..., min_length=1)  # At least 1 component required
+    component_bom: List[BOMItemCreate] = Field(default_factory=list)
+    product_bom: List[ProductBOMItemCreate] = Field(default_factory=list)
     
     class Config:
         json_schema_extra = {
             "example": {
-                "name": "Toy Car",
-                "bom": [
-                    {"component_id": 1, "quantity_required": 4},
-                    {"component_id": 2, "quantity_required": 1},
-                    {"component_id": 3, "quantity_required": 2}
+                "name": "Toy Moving Truck",
+                "component_bom": [
+                    {"component_id": 1, "quantity_required": 6},
+                    {"component_id": 2, "quantity_required": 2}
+                ],
+                "product_bom": [
+                    {"child_product_id": 1, "quantity_required": 2}
                 ]
             }
         }
@@ -85,7 +101,8 @@ class ProductResponse(ProductBase):
     updated_at: datetime
 
 class ProductDetailResponse(ProductResponse):
-    bom: List[BOMItemDetailResponse]
+    component_bom: List[BOMItemDetailResponse]
+    product_bom: List[ProductBOMItemResponse]
 
 class ProductCapacityResponse(BaseModel):
     id: int
