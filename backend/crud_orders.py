@@ -52,18 +52,14 @@ def create_order(db: Session, order_data: OrderCreate):
             detail=f"Product with id {order_data.product_id} not found"
         )
     
-    bom_entries = db.query(BillOfMaterials).filter(
-        BillOfMaterials.product_id == order_data.product_id
-    ).all()
-    
-    if not bom_entries:
+    # Calculate required components with spillage (RECURSIVE for nested products)
+    total_component_requirements = calculate_total_components_recursive(db, order_data.product_id, order_data.quantity)
+
+    if not total_component_requirements:
         raise HTTPException(
             status_code=400,
             detail=f"Product '{product.name}' has no Bill of Materials defined"
         )
-    
-    # Calculate required components with spillage (RECURSIVE for nested products)
-    total_component_requirements = calculate_total_components_recursive(db, order_data.product_id, order_data.quantity)
     
     component_requirements = []
     
@@ -74,6 +70,8 @@ def create_order(db: Session, order_data: OrderCreate):
             "component": component,
             "allocated_quantity": needed_qty
         })
+
+    
     
     # Check if we have enough inventory
     insufficient_components = []
