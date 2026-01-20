@@ -94,7 +94,8 @@ INSERT INTO components (name, spillage_coefficient, in_stock) VALUES
 -- Seed Data: Products
 INSERT INTO products (name) VALUES
 ('Toy Car'),
-('Toy Truck');
+('Toy Truck'),
+('Car Transportation Truck');
 
 -- Seed Data: Bill of Materials
 -- Toy Car BOM
@@ -109,3 +110,11 @@ INSERT INTO bill_of_materials (product_id, component_id, quantity_required) VALU
 (2, 1, 6),   -- Toy Truck needs 6 Wheels
 (2, 2, 2),   -- Toy Truck needs 2 Body Panels
 (2, 3, 3);   -- Toy Truck needs 3 Axles (no windshield)
+
+-- Car Transportation Truck BOM
+INSERT INTO bill_of_materials (product_id, component_id, quantity_required) VALUES
+(3, 1, 6),   -- Toy Truck needs 6 Wheels
+(3, 2, 2);   -- Toy Truck needs 2 Body Panels
+
+INSERT INTO Product_bom(parent_product_id, child_product_id, quantity_required) VALUES
+(3, 1, 2);   -- Transporting Truck needs 2 cars

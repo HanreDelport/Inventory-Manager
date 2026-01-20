@@ -5,6 +5,7 @@ from models import Product, BillOfMaterials, Component
 from schemas import ProductCreate, ProductUpdate, BOMItemDetailResponse, ProductDetailResponse, ProductBOMItemResponse, ProductBOMItemCreate
 from decimal import Decimal
 import math
+from crud_orders import calculate_total_components_recursive;
 
 def check_circular_reference(db: Session, parent_id: int, child_id: int, visited=None):
     if visited is None:
@@ -327,33 +328,26 @@ def update_product_full_bom(db: Session, product_id: int, component_bom: list, p
 def calculate_production_capacity(db: Session):
     products = get_all_products(db)
     capacity_list = []
-    
+
     for product in products:
-        bom_entries = db.query(BillOfMaterials).filter(
-            BillOfMaterials.product_id == product.id
-        ).all()
-        
-        if not bom_entries:
-            # Product has no BOM (shouldn't happen, but handle it)
-            capacity_list.append({
-                "id": product.id,
-                "name": product.name,
-                "in_progress": product.in_progress,
-                "shipped": product.shipped,
-                "max_producible": 0,
-                "limiting_component": "No BOM defined"
-            })
-            continue
-        
-        # Calculate max producible for each component
-        max_quantities = []
-        
-        for bom in bom_entries:
-            component = bom.component
+
+        total_component_requirements = calculate_total_components_recursive(db, product.id, 1 )
+    
+        requirements = []
+    
+        for component_id, needed_qty in total_component_requirements.items():
+            component = db.query(Component).filter(Component.id == component_id).first()
             
             # Calculate required quantity per product unit (with spillage)
             spillage_multiplier = 1 + float(component.spillage_coefficient)
-            required_per_unit = bom.quantity_required * spillage_multiplier
+            required_per_unit = needed_qty 
+            
+            print("\n"*10)
+            print(f"Product:{product.name} -- {component.name} : {required_per_unit:.2f}")
+            print("\n"*10)
+                
+            # Calculate max producible for each component
+            max_quantities = []
             
             # How many products can we make with available stock?
             if required_per_unit > 0:
@@ -365,7 +359,7 @@ def calculate_production_capacity(db: Session):
                 "component_name": component.name,
                 "max_units": max_from_this_component
             })
-        
+            
         # The limiting factor is the component with the LOWEST max
         limiting = min(max_quantities, key=lambda x: x["max_units"])
         
