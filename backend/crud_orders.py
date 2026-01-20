@@ -62,22 +62,17 @@ def create_order(db: Session, order_data: OrderCreate):
             detail=f"Product '{product.name}' has no Bill of Materials defined"
         )
     
+    # Calculate required components with spillage (RECURSIVE for nested products)
+    total_component_requirements = calculate_total_components_recursive(db, order_data.product_id, order_data.quantity)
+    
     component_requirements = []
     
-    for bom in bom_entries:
-        component = bom.component
-        spillage_multiplier = Decimal("1") + component.spillage_coefficient
-        exact_per_unit = Decimal(str(bom.quantity_required)) * spillage_multiplier
-        exact_total = exact_per_unit * Decimal(str(order_data.quantity))
-        allocated_quantity = math.ceil(float(exact_total))
+    for component_id, needed_qty in total_component_requirements.items():
+        component = db.query(Component).filter(Component.id == component_id).first()
         
         component_requirements.append({
             "component": component,
-            "bom_quantity": bom.quantity_required,
-            "spillage_coefficient": component.spillage_coefficient,
-            "exact_per_unit": exact_per_unit,
-            "exact_total": exact_total,
-            "allocated_quantity": allocated_quantity
+            "allocated_quantity": needed_qty
         })
     
     # Check if we have enough inventory
@@ -340,18 +335,17 @@ def get_order_requirements(db: Session, order_id: int):
         raise HTTPException(status_code=404, detail=f"Order with id {order_id} not found")
     
     product = order.product
-    bom_entries = db.query(BillOfMaterials).filter(
-        BillOfMaterials.product_id == order.product_id
-    ).all()
+     # Use recursive calculation for nested products
+    total_component_requirements = calculate_total_components_recursive(
+        db, 
+        order.product_id, 
+        order.quantity
+    )
     
     requirements = []
     
-    for bom in bom_entries:
-        component = bom.component
-        spillage_multiplier = Decimal("1") + component.spillage_coefficient
-        exact_per_unit = Decimal(str(bom.quantity_required)) * spillage_multiplier
-        exact_total = exact_per_unit * Decimal(str(order.quantity))
-        needed_qty = math.ceil(float(exact_total))
+    for component_id, needed_qty in total_component_requirements.items():
+        component = db.query(Component).filter(Component.id == component_id).first()
         
         available = component.in_stock
         shortage = max(0, needed_qty - available)
@@ -375,3 +369,56 @@ def get_order_requirements(db: Session, order_id: int):
         "requirements": requirements,
         "can_allocate": can_allocate
     }
+
+def calculate_total_components_recursive(db: Session, product_id: int, quantity: int, depth=0):
+    """
+    Recursively calculate all component requirements for a product,
+    including components from nested sub-products.
+    """
+    from models import ProductBOM
+    
+    if depth > 10:
+        raise HTTPException(400, "BOM nesting too deep (max 10 levels)")
+    
+    total_components = {}
+    
+    # Get direct component requirements
+    component_boms = db.query(BillOfMaterials).filter(
+        BillOfMaterials.product_id == product_id
+    ).all()
+    
+    for bom in component_boms:
+        component = bom.component
+        spillage_multiplier = Decimal("1") + component.spillage_coefficient
+        exact_per_unit = Decimal(str(bom.quantity_required)) * spillage_multiplier
+        exact_total = exact_per_unit * Decimal(str(quantity))
+        needed = math.ceil(float(exact_total))
+        
+        if component.id in total_components:
+            total_components[component.id] += needed
+        else:
+            total_components[component.id] = needed
+    
+    # Get sub-product requirements (nested products)
+    product_boms = db.query(ProductBOM).filter(
+        ProductBOM.parent_product_id == product_id
+    ).all()
+    
+    for product_bom in product_boms:
+        # Recursively get components for sub-product
+        sub_quantity = product_bom.quantity_required * quantity
+        sub_components = calculate_total_components_recursive(
+            db, 
+            product_bom.child_product_id, 
+            sub_quantity,
+            depth + 1
+        )
+        
+        # Merge sub-product components into total
+        for comp_id, comp_qty in sub_components.items():
+            if comp_id in total_components:
+                total_components[comp_id] += comp_qty
+            else:
+                total_components[comp_id] = comp_qty
+    
+    return total_components
