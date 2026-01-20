@@ -68,7 +68,7 @@ function ProcurementPage() {
               Total Orders Affected
             </h4>
             <p style={{ fontSize: '3rem', fontWeight: 'bold', color: '#3498db' }}>
-              {componentsToOrder.reduce((sum, item) => sum + item.orders_affected, 0)}
+              {componentsToOrder.length > 0 ? Math.max(...componentsToOrder.map(item => item.orders_affected))  : 0}
             </p>
           </div>
         </div>

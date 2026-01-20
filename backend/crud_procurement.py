@@ -4,10 +4,8 @@ from decimal import Decimal
 import math
 
 def calculate_procurement_needs(db: Session):
-    # Import here to avoid circular dependency
     from crud_orders import calculate_total_components_recursive
     
-    # Get all pending and in_progress orders
     open_orders = db.query(Order).filter(Order.status.in_(['pending', 'in_progress'])).all()
     
     if not open_orders:
@@ -19,16 +17,12 @@ def calculate_procurement_needs(db: Session):
     component_needs = {}
     
     for order in open_orders:
-        # Only calculate for pending orders (in_progress already allocated)
         if order.status == 'pending':
-            # Use recursive calculation to handle nested products
             total_components = calculate_total_components_recursive(
                 db, 
                 order.product_id, 
                 order.quantity
             )
-
-            orderCounted = False
             
             for component_id, needed_qty in total_components.items():
                 if component_id not in component_needs:
@@ -39,9 +33,7 @@ def calculate_procurement_needs(db: Session):
                     }
                 
                 component_needs[component_id]["total_needed"] += needed_qty
-                if orderCounted == False : 
-                    component_needs[component_id]["orders_count"] += 1
-                    orderCounted = True
+                component_needs[component_id]["orders_count"] += 1  # This now increments for EVERY component in the order
     
     procurement_list = []
     
