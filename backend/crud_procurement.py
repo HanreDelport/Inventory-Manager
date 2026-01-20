@@ -4,7 +4,10 @@ from decimal import Decimal
 import math
 
 def calculate_procurement_needs(db: Session):
-    # Get both pending AND in_progress orders
+    # Import here to avoid circular dependency
+    from crud_orders import calculate_total_components_recursive
+    
+    # Get all pending and in_progress orders
     open_orders = db.query(Order).filter(Order.status.in_(['pending', 'in_progress'])).all()
     
     if not open_orders:
@@ -16,35 +19,29 @@ def calculate_procurement_needs(db: Session):
     component_needs = {}
     
     for order in open_orders:
-        bom_entries = db.query(BillOfMaterials).filter(
-            BillOfMaterials.product_id == order.product_id
-        ).all()
-        
-        for bom in bom_entries:
-            component = bom.component
+        # Only calculate for pending orders (in_progress already allocated)
+        if order.status == 'pending':
+            # Use recursive calculation to handle nested products
+            total_components = calculate_total_components_recursive(
+                db, 
+                order.product_id, 
+                order.quantity
+            )
+
+            orderCounted = False
             
-            spillage_multiplier = Decimal("1") + component.spillage_coefficient
-            exact_per_unit = Decimal(str(bom.quantity_required)) * spillage_multiplier
-            exact_total = exact_per_unit * Decimal(str(order.quantity))
-            needed_qty = math.ceil(float(exact_total))
-            
-            # For pending orders, use full amount; for in_progress, they're already allocated
-            if order.status == 'pending':
-                actual_need = needed_qty
-            else:
-                # in_progress orders already have allocations, so need = 0
-                actual_need = 0
-            
-            if component.id not in component_needs:
-                component_needs[component.id] = {
-                    "component": component,
-                    "total_needed": 0,
-                    "orders_count": 0
-                }
-            
-            component_needs[component.id]["total_needed"] += actual_need
-            if actual_need > 0:
-                component_needs[component.id]["orders_count"] += 1
+            for component_id, needed_qty in total_components.items():
+                if component_id not in component_needs:
+                    component_needs[component_id] = {
+                        "component": db.query(Component).filter(Component.id == component_id).first(),
+                        "total_needed": 0,
+                        "orders_count": 0
+                    }
+                
+                component_needs[component_id]["total_needed"] += needed_qty
+                if orderCounted == False : 
+                    component_needs[component_id]["orders_count"] += 1
+                    orderCounted = True
     
     procurement_list = []
     
