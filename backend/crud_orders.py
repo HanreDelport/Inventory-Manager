@@ -243,23 +243,23 @@ def allocate_pending_order(db: Session, order_id: int):
         )
     
     product = order.product
-    bom_entries = db.query(BillOfMaterials).filter(
-        BillOfMaterials.product_id == order.product_id
-    ).all()
-    
+     # Use recursive calculation for nested products
+    total_component_requirements = calculate_total_components_recursive(
+        db, 
+        order.product_id, 
+        order.quantity
+    )
+
     component_requirements = []
-    
-    for bom in bom_entries:
-        component = bom.component
-        spillage_multiplier = Decimal("1") + component.spillage_coefficient
-        exact_per_unit = Decimal(str(bom.quantity_required)) * spillage_multiplier
-        exact_total = exact_per_unit * Decimal(str(order.quantity))
-        allocated_quantity = math.ceil(float(exact_total))
+
+    for component_id, needed_qty in total_component_requirements.items():
+        component = db.query(Component).filter(Component.id == component_id).first()
         
         component_requirements.append({
             "component": component,
-            "allocated_quantity": allocated_quantity
+            "allocated_quantity": needed_qty
         })
+        
     
     # Check if we NOW have enough inventory
     insufficient_components = []
