@@ -1,9 +1,15 @@
--- Drop existing tables (for clean setup)
+-- Disable FK checks for clean reset
+SET FOREIGN_KEY_CHECKS = 0;
+
 DROP TABLE IF EXISTS order_allocations;
 DROP TABLE IF EXISTS orders;
 DROP TABLE IF EXISTS bill_of_materials;
+DROP TABLE IF EXISTS product_bom;
 DROP TABLE IF EXISTS products;
 DROP TABLE IF EXISTS components;
+
+SET FOREIGN_KEY_CHECKS = 1;
+
 
 -- Components Table
 CREATE TABLE components (

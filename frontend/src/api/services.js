@@ -14,7 +14,8 @@ export const getProduct = (id) => apiClient.get(`/products/${id}`);
 export const createProduct = (data) => apiClient.post('/products', data);
 export const updateProduct = (id, data) => apiClient.put(`/products/${id}`, data);
 export const deleteProduct = (id) => apiClient.delete(`/products/${id}`);
-export const updateProductBOM = (id, bom) => apiClient.put(`/products/${id}/bom`, bom);
+export const updateProductBOM = (id, component_bom, product_bom) => 
+  apiClient.put(`/products/${id}/bom`, { component_bom, product_bom });
 export const getProductionCapacity = () => apiClient.get('/products/capacity/calculate');
 
 // Orders
