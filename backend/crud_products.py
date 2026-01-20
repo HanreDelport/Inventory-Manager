@@ -326,50 +326,94 @@ def update_product_full_bom(db: Session, product_id: int, component_bom: list, p
         raise HTTPException(500, f"Unexpected error: {str(e)}")
 
 def calculate_production_capacity(db: Session):
-    products = get_all_products(db)
-    capacity_list = []
-
-    for product in products:
-
-        total_component_requirements = calculate_total_components_recursive(db, product.id, 1 )
+    from models import ProductBOM
     
-        requirements = []
-    
-        for component_id, needed_qty in total_component_requirements.items():
-            component = db.query(Component).filter(Component.id == component_id).first()
+    def calculate_max_producible_recursive(product_id, depth=0):
+        """
+        Recursively calculate max producible units for a product,
+        considering both component constraints and nested product constraints.
+        
+        Returns: (max_units, limiting_factor_name)
+        """
+        if depth > 10:
+            return (0, "Nesting too deep")
+        
+        # Get component BOM entries
+        component_boms = db.query(BillOfMaterials).filter(
+            BillOfMaterials.product_id == product_id
+        ).all()
+        
+        # Get product BOM entries (nested products)
+        product_boms = db.query(ProductBOM).filter(
+            ProductBOM.parent_product_id == product_id
+        ).all()
+        
+        # If no BOM at all, can't produce
+        if not component_boms and not product_boms:
+            return (0, "No BOM defined")
+        
+        max_quantities = []
+        
+        # Calculate max from component constraints
+        for bom in component_boms:
+            component = bom.component
+            spillage_multiplier = Decimal("1") + component.spillage_coefficient
+            required_per_unit = Decimal(str(bom.quantity_required)) * spillage_multiplier
             
-            # Calculate required quantity per product unit (with spillage)
-            spillage_multiplier = 1 + float(component.spillage_coefficient)
-            required_per_unit = needed_qty 
-            
-            print("\n"*10)
-            print(f"Product:{product.name} -- {component.name} : {required_per_unit:.2f}")
-            print("\n"*10)
-                
-            # Calculate max producible for each component
-            max_quantities = []
-            
-            # How many products can we make with available stock?
             if required_per_unit > 0:
-                max_from_this_component = int(component.in_stock / required_per_unit)
+                max_from_this_component = int(Decimal(str(component.in_stock)) / required_per_unit)
             else:
                 max_from_this_component = 0
             
             max_quantities.append({
-                "component_name": component.name,
+                "name": component.name,
                 "max_units": max_from_this_component
             })
+        
+        # Calculate max from nested product constraints
+        for product_bom in product_boms:
+            child_product = product_bom.child_product
             
-        # The limiting factor is the component with the LOWEST max
-        limiting = min(max_quantities, key=lambda x: x["max_units"])
+            # Recursively get max producible for the nested product
+            child_max, _ = calculate_max_producible_recursive(
+                product_bom.child_product_id,
+                depth + 1
+            )
+            
+            # How many parent units can we make based on this child?
+            # If we need 2 child products per parent, and we can make 10 children,
+            # then we can make 10 / 2 = 5 parents
+            if product_bom.quantity_required > 0:
+                max_from_this_child = child_max // product_bom.quantity_required
+            else:
+                max_from_this_child = 0
+            
+            max_quantities.append({
+                "name": f"{child_product.name} (nested product)",
+                "max_units": max_from_this_child
+            })
+        
+        # The limiting factor is the minimum
+        if max_quantities:
+            limiting = min(max_quantities, key=lambda x: x["max_units"])
+            return (limiting["max_units"], limiting["name"])
+        else:
+            return (0, "No constraints found")
+    
+    # Calculate for all products
+    products = get_all_products(db)
+    capacity_list = []
+    
+    for product in products:
+        max_producible, limiting_component = calculate_max_producible_recursive(product.id)
         
         capacity_list.append({
             "id": product.id,
             "name": product.name,
             "in_progress": product.in_progress,
             "shipped": product.shipped,
-            "max_producible": limiting["max_units"],
-            "limiting_component": limiting["component_name"]
+            "max_producible": max_producible,
+            "limiting_component": limiting_component
         })
     
     return capacity_list
