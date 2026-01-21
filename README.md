@@ -217,13 +217,25 @@ stock-management-system/
 │   ├── package.json        # Node dependencies
 │   └── .env.production     # Production environment variables
 ├── schema.sql              # Database schema and seed data
-└── README.md              # This file
+├── License                 # Custom non-commercial license
+└── README.md               # This file
 ```
 
 ## API Documentation
 
 Once the backend is running, visit http://localhost:8000/docs for complete interactive API documentation.
 
+## License
+
+This project is licensed under a **Custom Non-Commercial License**.
+
+You may use, study, and modify this project for personal or educational purposes.
+Commercial use, resale, or distribution is **not permitted** without prior
+written permission from the author.
+
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+By submitting a contribution, you grant the project owner the right to use,
+modify, and relicense your contribution as part of this project, including
+for future commercial licensing, while the project remains non-commercial
+for the public
