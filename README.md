@@ -224,10 +224,6 @@ stock-management-system/
 
 Once the backend is running, visit http://localhost:8000/docs for complete interactive API documentation.
 
-## License
-
-This project is open source and available under the MIT License.
-
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
