@@ -116,5 +116,5 @@ INSERT INTO bill_of_materials (product_id, component_id, quantity_required) VALU
 (3, 1, 6),   -- Toy Truck needs 6 Wheels
 (3, 2, 2);   -- Toy Truck needs 2 Body Panels
 
-INSERT INTO Product_bom(parent_product_id, child_product_id, quantity_required) VALUES
+INSERT INTO product_bom(parent_product_id, child_product_id, quantity_required) VALUES
 (3, 1, 2);   -- Transporting Truck needs 2 cars
