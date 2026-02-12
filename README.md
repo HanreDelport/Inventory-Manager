@@ -2,6 +2,9 @@
 
 A production-ready web application for managing stock, production, and orders with support for multi-level Bill of Materials (BOMs), inventory tracking, and procurement management.
 
+## Check it out
+Try the web-app out for yourself at this link: https://inventory-manager-frontend-5bhs.onrender.com
+
 ## Features
 
 - **Component Management**: Track raw materials with spillage coefficients
