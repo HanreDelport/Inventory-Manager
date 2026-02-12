@@ -4,6 +4,7 @@ A production-ready web application for managing stock, production, and orders wi
 
 ## Check it out
 Try the web-app out for yourself at this link: https://inventory-manager-frontend-5bhs.onrender.com
+Or use this link to watch me showcase the web-app: https://youtu.be/M5AGeI9j_gY
 
 ## Features
 
