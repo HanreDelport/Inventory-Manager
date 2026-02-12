@@ -18,9 +18,14 @@ DATABASE_URL = os.getenv("DB_URL",f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_
 # Create SQLAlchemy engine
 engine = create_engine(
     DATABASE_URL,
+    connect_args={
+        "ssl": {
+            "ssl_mode": "REQUIRED"
+        }
+    },
     pool_pre_ping=True,  # Verify connections before using
     pool_recycle=3600,   # Recycle connections after 1 hour
-    echo=True            # Log SQL queries (set to False in production)
+    echo=False            # Log SQL queries (set to False in production)
 )
 
 # Create SessionLocal class
